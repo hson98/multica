@@ -55,7 +55,9 @@ const emptyClaimVersionTTL = 24 * time.Hour
 // paths use a background context so the cache outlives the request,
 // but a wedged Redis must not stall enqueue indefinitely — bound the
 // blast radius and degrade to "no cache" instead.
-const emptyClaimRedisTimeout = 250 * time.Millisecond
+//
+// Personal build: raised from 250ms because Redis round trips take ~270ms.
+const emptyClaimRedisTimeout = 1 * time.Second
 
 // EmptyClaimCache caches "this runtime currently has no queued task"
 // so the daemon's poll-based claim path can short-circuit before
