@@ -5,6 +5,7 @@
 #   scripts/personal/mc-daemon-update.sh --no-pull    skip git; just rebuild + restart
 #   scripts/personal/mc-daemon-update.sh --backend    also rebuild multica-backend:personal and restart the backend container
 #   scripts/personal/mc-daemon-update.sh -y           don't ask before restarting the daemon
+#   scripts/personal/mc-daemon-update.sh --build-only build the CLI and stop (no git, no restart)
 #
 # Only touches the "personal" profile; the default-profile (work) daemon is left alone.
 set -euo pipefail
@@ -17,13 +18,14 @@ PROFILE="personal"
 # Runtimes to keep disabled (pointed at a missing path so the daemon skips them).
 DISABLED_ENV=(MULTICA_COPILOT_PATH=/nonexistent/copilot)
 
-PULL=1 BACKEND=0 YES=0
+PULL=1 BACKEND=0 YES=0 BUILD_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --no-pull) PULL=0 ;;
     --backend) BACKEND=1 ;;
     -y|--yes) YES=1 ;;
-    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+    --build-only) BUILD_ONLY=1; PULL=0 ;;
+    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -74,6 +76,7 @@ C=$(git rev-parse --short HEAD)
 VERSION="${TAG}-0-g${C}-personal"
 (cd server && go build -ldflags "-X main.version=${VERSION} -X main.commit=${C} -X main.buildCommit=${C} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o bin/multica ./cmd/multica)
 "$CLI" version | head -1
+[[ $BUILD_ONLY -eq 1 ]] && exit 0
 
 if [[ $BACKEND -eq 1 ]]; then
   step "Build + restart backend (multica-backend:personal)"

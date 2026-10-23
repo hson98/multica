@@ -1,0 +1,36 @@
+# Personal override: use the cloud PostgreSQL / Redis from .env instead of the
+# bundled postgres container, so the data can be shared with other machines.
+#
+#   docker compose -f docker-compose.selfhost.yml -f docker-compose.personal.yml up -d
+
+services:
+  postgres:
+    # Not started unless explicitly requested with --profile local-db.
+    profiles: ["local-db"]
+
+  # Local Redis: a cloud Redis adds ~270ms per command and Multica's claim path
+  # calls it several times sequentially. Contents are cache/relay state only.
+  redis:
+    image: redis:7.4.1-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    # Built locally from branch personal/remote-db-timeouts (claim and Redis
+    # timeouts raised for a remote DB/Redis). Rebuild with:
+    #   docker build -f Dockerfile -t multica-backend:personal .
+    image: multica-backend:personal
+    depends_on: !override
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the cloud PostgreSQL}
+      # Aiven free Postgres allows 20 connections (3 reserved for superuser);
+      # the backend default pool of 25 would exhaust it.
+      DATABASE_MAX_CONNS: ${DATABASE_MAX_CONNS:-12}
+      DATABASE_MIN_CONNS: ${DATABASE_MIN_CONNS:-2}
